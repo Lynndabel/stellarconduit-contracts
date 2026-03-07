@@ -24,25 +24,9 @@
 //!
 //! implementation tracked in GitHub issue
 
-
 use soroban_sdk::{contracttype, Address, Env, String};
 
-use crate::types::{AllocationRecord, TreasuryEntry};
-
-#[contracttype]
-#[derive(Clone)]
-pub enum DataKey {
-    Balance,
-    EntryCount,
-    Entry(u64),
-    Allocation(String),
-    Admin,
-    TokenAddress,
-}
-
-use soroban_sdk::{contracttype, Address, Env};
-
-use crate::types::{SpendingProgram, TreasuryEntry};
+use crate::types::{AllocationRecord, SpendingProgram, TreasuryEntry};
 
 /// Storage keys for the treasury contract.
 #[contracttype]
@@ -54,6 +38,8 @@ pub enum DataKey {
     EntryCount,
     /// A TreasuryEntry keyed by entry_id.
     Entry(u64),
+    /// Allocation records keyed by program name.
+    Allocation(String),
     /// A SpendingProgram keyed by program_id.
     SpendingProgram(u64),
     /// Address authorized to perform withdrawals and allocations.
@@ -62,21 +48,13 @@ pub enum DataKey {
     TokenAddress,
 }
 
-/// Load the current treasury balance.
-
 pub fn get_balance(env: &Env) -> i128 {
     env.storage().instance().get(&DataKey::Balance).unwrap_or(0)
 }
 
-
-/// Persist an updated treasury balance.
-
 pub fn set_balance(env: &Env, balance: i128) {
     env.storage().instance().set(&DataKey::Balance, &balance);
 }
-
-
-/// Load a specific history entry by ID.
 
 pub fn get_entry(env: &Env, entry_id: u64) -> Option<TreasuryEntry> {
     env.storage().persistent().get(&DataKey::Entry(entry_id))
@@ -94,7 +72,6 @@ pub fn set_entry(env: &Env, entry: TreasuryEntry) {
 }
 
 /// Return total number of entries in history.
-
 pub fn get_entry_count(env: &Env) -> u64 {
     env.storage()
         .instance()
@@ -129,11 +106,6 @@ pub fn set_allocation(env: &Env, program: &String, record: &AllocationRecord) {
         .set(&DataKey::Allocation(program.clone()), record);
 }
 
-pub fn get_admin(env: &Env) -> Option<Address> {
-    env.storage().instance().get(&DataKey::Admin)
-}
-
-
 /// Load a spending program by ID.
 pub fn get_spending_program(env: &Env, program_id: u64) -> Option<SpendingProgram> {
     env.storage()
@@ -157,18 +129,15 @@ pub fn get_admin(env: &Env) -> Address {
 }
 
 /// Set the treasury admin address.
-
 pub fn set_admin(env: &Env, admin: &Address) {
     env.storage().instance().set(&DataKey::Admin, admin);
 }
 
-
-pub fn get_token_address(env: &Env) -> Option<Address> {
-    env.storage().instance().get(&DataKey::TokenAddress)
+/// Check if the admin address is set.
+pub fn has_admin(env: &Env) -> bool {
+    env.storage().instance().has(&DataKey::Admin)
 }
 
-pub fn set_token_address(env: &Env, addr: &Address) {
-    env.storage().instance().set(&DataKey::TokenAddress, addr);
 
 /// Load the treasury token SAC address.
 pub fn get_token_address(env: &Env) -> Address {

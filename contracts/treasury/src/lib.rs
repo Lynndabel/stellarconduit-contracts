@@ -27,8 +27,6 @@
 
 #![no_std]
 
-
-use soroban_sdk::{contract, contractimpl, Address, Env};
 use soroban_sdk::{contract, contractimpl, Address, Env, String};
 
 pub mod errors;
@@ -36,7 +34,6 @@ pub mod storage;
 pub mod types;
 
 use crate::errors::ContractError;
-use crate::types::TreasuryEntry;
 use crate::types::{EntryKind, TreasuryEntry};
 
 
@@ -68,13 +65,16 @@ impl TreasuryContract {
         admin: Address,
         token_address: Address,
     ) -> Result<(), ContractError> {
-        if storage::get_admin(&env).is_some() {
+        if storage::has_admin(&env) {
             return Err(ContractError::AlreadyInitialized);
         }
 
         storage::set_admin(&env, &admin);
         storage::set_token_address(&env, &token_address);
         storage::set_balance(&env, 0);
+
+        Ok(())
+    }
 
     /// Deposit funds into the protocol treasury.
     ///
