@@ -6,7 +6,7 @@ extern crate std;
 
 use soroban_sdk::{
     testutils::{Address as _, Events as _},
-    Address, Env, String,
+    Address, BytesN, Env, String,
 };
 
 // The contract-under-test.
@@ -292,4 +292,22 @@ fn test_allocate_insufficient_treasury_balance() {
         res,
         Err(Ok(crate::errors::ContractError::InsufficientBalance))
     );
+}
+
+#[test]
+fn test_upgrade_and_version() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let client = create_treasury_contract(&env);
+    let admin = Address::generate(&env);
+    let (token_client, token_address) = create_token_contract(&env, &admin);
+    
+    client.initialize(&admin, &token_address);
+
+    // Test version returns 1
+    assert_eq!(client.version(), 1);
+
+    // Test upgrade succeeds for admin
+    let new_wasm_hash = BytesN::from_array(&env, &[1u8; 32]);
+    client.upgrade(&new_wasm_hash);
 }

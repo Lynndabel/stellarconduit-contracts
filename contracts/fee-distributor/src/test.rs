@@ -5,7 +5,7 @@
 
 extern crate std;
 
-use soroban_sdk::{testutils::Address as _, Address, Env};
+use soroban_sdk::{testutils::Address as _, Address, BytesN, Env};
 
 use crate::{errors::ContractError, FeeDistributorContract, FeeDistributorContractClient};
 
@@ -711,4 +711,26 @@ fn test_claim_preserves_total_earned() {
     // But unclaimed should be zero and total_claimed should equal total_earned
     assert_eq!(earnings_after.unclaimed, 0);
     assert_eq!(earnings_after.total_claimed, total_earned_before);
+}
+
+// ============================================================================
+// upgrade() and version() Tests
+// ============================================================================
+
+#[test]
+fn test_upgrade_and_version() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(FeeDistributorContract, ());
+    let client = FeeDistributorContractClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    let treasury = Address::generate(&env);
+    client.initialize(&admin, &50u32, &1000u32, &treasury);
+
+    // Test version returns 1
+    assert_eq!(client.version(), 1);
+
+    // Test upgrade succeeds for admin
+    let new_wasm_hash = BytesN::from_array(&env, &[1u8; 32]);
+    client.upgrade(&new_wasm_hash);
 }
