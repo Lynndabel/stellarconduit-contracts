@@ -27,16 +27,209 @@
 
 #![no_std]
 
-use soroban_sdk::{contract, contractimpl};
+use soroban_sdk::{contract, contractimpl, Address, Env};
 
 pub mod errors;
 pub mod storage;
 pub mod types;
+
+use crate::errors::ContractError;
 
 #[contract]
 pub struct FeeDistributorContract;
 
 #[contractimpl]
 impl FeeDistributorContract {
-    // implementation tracked in GitHub issue
+    /// Calculate the total fee for a given batch of transactions.
+    ///
+    /// This is a pure calculation function that reads the configured fee rate
+    /// and returns the total fee amount. No storage is written.
+    ///
+    /// # Formula
+    /// `fee = (batch_size as i128) * (fee_rate_bps as i128) / 10000`
+    ///
+    /// # Example
+    /// - With `fee_rate_bps = 50` (0.5%) and `batch_size = 200`:
+    ///   `fee = 200 * 50 / 10000 = 1`
+    /// - With `fee_rate_bps = 500` (5%) and `batch_size = 1000`:
+    ///   `fee = 1000 * 500 / 10000 = 50`
+    ///
+    /// # Parameters
+    /// - `env`: Soroban environment.
+    /// - `batch_size`: Number of transactions in the settled batch.
+    ///
+    /// # Errors
+    /// - `ContractError::InvalidBatchSize` if `batch_size` is zero.
+    /// - `ContractError::Overflow` if the calculation overflows.
+    pub fn calculate_fee(env: Env, batch_size: u32) -> Result<i128, ContractError> {
+        if batch_size == 0 {
+            return Err(ContractError::InvalidBatchSize);
+        }
+
+        let config = storage::get_fee_config(&env);
+
+        let total = (batch_size as i128)
+            .checked_mul(config.fee_rate_bps as i128)
+            .ok_or(ContractError::Overflow)?;
+
+        let fee = total.checked_div(10000).ok_or(ContractError::Overflow)?;
+
+        Ok(fee)
+    }
+
+    /// Distribute the fee for a successfully settled transaction batch.
+    ///
+    /// This function calculates the fee, credits the relay node's earnings,
+    /// allocates the protocol treasury share, and permanently records the
+    /// distribution event.
+    ///
+    /// # Parameters
+    /// - `env`: Soroban environment.
+    /// - `relay_address`: Address of the relay node that settled the batch.
+    /// - `batch_id`: Unique identifier of the settled transaction batch.
+    /// - `batch_size`: Number of transactions in the batch.
+    ///
+    /// # Errors
+    /// - `ContractError::BatchAlreadyDistributed` if `batch_id` has already been processed.
+    /// - `ContractError::InvalidBatchSize` if `batch_size` is zero.
+    /// - `ContractError::Overflow` if fee/split calculation overflows.
+    pub fn distribute(
+        env: Env,
+        relay_address: Address,
+        batch_id: u64,
+        batch_size: u32,
+    ) -> Result<(), ContractError> {
+        if storage::get_fee_entry(&env, batch_id).is_some() {
+            return Err(ContractError::BatchAlreadyDistributed);
+        }
+
+        let fee = Self::calculate_fee(env.clone(), batch_size)?;
+        let config = storage::get_fee_config(&env);
+
+        let treasury_share = fee
+            .checked_mul(config.treasury_share_bps as i128)
+            .ok_or(ContractError::Overflow)?
+            .checked_div(10000)
+            .ok_or(ContractError::Overflow)?;
+
+        let relay_payout = fee
+            .checked_sub(treasury_share)
+            .ok_or(ContractError::Overflow)?;
+
+        let mut record = storage::get_earnings(&env, &relay_address);
+        record.total_earned = record
+            .total_earned
+            .checked_add(relay_payout)
+            .ok_or(ContractError::Overflow)?;
+        record.unclaimed = record
+            .unclaimed
+            .checked_add(relay_payout)
+            .ok_or(ContractError::Overflow)?;
+
+        storage::set_earnings(&env, &relay_address, &record);
+
+        let entry = crate::types::FeeEntry {
+            batch_id,
+            relay_address: relay_address.clone(),
+            amount: fee,
+            treasury_share,
+            settled_at: env.ledger().timestamp(),
+        };
+        storage::set_fee_entry(&env, batch_id, &entry);
+
+        env.events().publish(
+            ("distribute",),
+            (relay_address.clone(), batch_id, relay_payout),
+        );
+
+        // TODO: SAC transfer treasury_share to treasury
+        Ok(())
+    }
+
+    /// Claim accumulated, unclaimed fees for a relay node.
+    ///
+    /// This allows a relay node to withdraw all its accumulated, unclaimed fees
+    /// to its own address. Upon successful claim, the unclaimed balance is reset
+    /// to zero, and the total claimed amount is increased.
+    ///
+    /// # Parameters
+    /// - `env`: Soroban environment.
+    /// - `relay_address`: Address of the relay node claiming its fees. Must authorize the call.
+    ///
+    /// # Returns
+    /// The total amount of fees claimed in this transaction.
+    ///
+    /// # Errors
+    /// - `ContractError::NothingToClaim` if the relay node has no unclaimed earnings.
+    /// - `ContractError::Overflow` if the arithmetic for updating `total_claimed` overflows.
+    pub fn claim(env: Env, relay_address: Address) -> Result<i128, ContractError> {
+        relay_address.require_auth();
+
+        let mut record = storage::get_earnings(&env, &relay_address);
+
+        if record.unclaimed == 0 {
+            return Err(ContractError::NothingToClaim);
+        }
+
+        let payout = record.unclaimed;
+
+        record.total_claimed = record
+            .total_claimed
+            .checked_add(payout)
+            .ok_or(ContractError::Overflow)?;
+        record.unclaimed = 0;
+
+        storage::set_earnings(&env, &relay_address, &record);
+
+        env.events()
+            .publish(("claim",), (relay_address.clone(), payout));
+
+        // TODO: SAC transfer payout to relay_address
+        Ok(payout)
+    }
+
+    /// Retrieve the cumulative earnings record for a relay node.
+    ///
+    /// This is a read-only view function that returns the total earned,
+    /// total claimed, and currently unclaimed fees for the given relay node.
+    /// If the node has no earnings history, it returns a zeroed record.
+    ///
+    /// # Parameters
+    /// - `env`: Soroban environment.
+    /// - `relay_address`: Address of the relay node.
+    ///
+    /// # Returns
+    /// An `EarningsRecord` containing the relay node's fee history.
+    pub fn get_earnings(env: Env, relay_address: Address) -> crate::types::EarningsRecord {
+        storage::get_earnings(&env, &relay_address)
+    }
+
+    /// Update the protocol fee rate.
+    ///
+    /// This function can only be called by the configured admin address.
+    /// The fee rate is specified in basis points (bps), where 10000 = 100%.
+    ///
+    /// # Parameters
+    /// - `env`: Soroban environment.
+    /// - `new_fee_rate_bps`: The new fee rate in basis points (1 to 10000).
+    ///
+    /// # Errors
+    /// - Auth error if caller is not the admin.
+    /// - `ContractError::InvalidFeeRate` if the rate is 0 or greater than 10000.
+    pub fn set_fee_rate(env: Env, new_fee_rate_bps: u32) -> Result<(), ContractError> {
+        let mut config = storage::get_fee_config(&env);
+
+        config.admin.require_auth();
+
+        if new_fee_rate_bps == 0 || new_fee_rate_bps > 10_000 {
+            return Err(ContractError::InvalidFeeRate);
+        }
+
+        config.fee_rate_bps = new_fee_rate_bps;
+        storage::set_fee_config(&env, &config);
+
+        env.events().publish(("set_fee_rate",), (new_fee_rate_bps,));
+
+        Ok(())
+    }
 }
