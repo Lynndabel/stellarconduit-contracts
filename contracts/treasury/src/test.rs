@@ -300,7 +300,7 @@ fn test_upgrade_and_version() {
     env.mock_all_auths();
     let client = create_treasury_contract(&env);
     let admin = Address::generate(&env);
-    let (token_client, token_address) = create_token_contract(&env, &admin);
+    let (_token_client, token_address) = create_token_contract(&env, &admin);
     
     client.initialize(&admin, &token_address);
 
