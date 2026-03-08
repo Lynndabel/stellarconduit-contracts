@@ -5,7 +5,7 @@
 
 extern crate std;
 
-use soroban_sdk::{testutils::Address as _, Address, Env};
+use soroban_sdk::{testutils::Address as _, token, Address, Env};
 
 use crate::{errors::ContractError, FeeDistributorContract, FeeDistributorContractClient};
 
@@ -25,6 +25,48 @@ fn setup<'a>() -> (Env, FeeDistributorContractClient<'a>) {
     let token = Address::generate(&env);
     client.initialize(&council, &50u32, &1000u32, &treasury, &token);
     (env, client)
+}
+
+fn setup_with_token<'a>() -> (Env, FeeDistributorContractClient<'a>, Address) {
+    let env = Env::default();
+    env.mock_all_auths_allowing_non_root_auth();
+
+    // Register token contract
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_id = token_contract.address();
+
+    // Register treasury contract
+    let treasury_id = env.register(treasury::TreasuryContract, ());
+    let treasury_client = treasury::TreasuryContractClient::new(&env, &treasury_id);
+
+    // Initialize treasury
+    let admin = Address::generate(&env);
+    let mut members = soroban_sdk::Vec::new(&env);
+    members.push_back(admin.clone());
+    let treasury_council = treasury::types::AdminCouncil {
+        members: members.clone(),
+        threshold: 1,
+    };
+    treasury_client.initialize(&treasury_council, &token_id);
+
+    // Register fee distributor
+    let contract_id = env.register(FeeDistributorContract, ());
+    let client = FeeDistributorContractClient::new(&env, &contract_id);
+
+    let council = crate::types::AdminCouncil {
+        members,
+        threshold: 1,
+    };
+
+    // Initialize fee distributor
+    client.initialize(&council, &50u32, &1000u32, &treasury_id, &token_id);
+
+    // Mint tokens to fee distributor for testing
+    let token_client = token::StellarAssetClient::new(&env, &token_id);
+    token_client.mint(&contract_id, &1_000_000);
+
+    (env, client, contract_id)
 }
 
 // ============================================================================
@@ -193,8 +235,8 @@ fn test_distribute_zero_batch_size() {
 
 #[test]
 fn test_distribute_treasury_share_split() {
-    let (_env, client) = setup();
-    let relay = Address::generate(&_env);
+    let (env, client, _contract_id) = setup_with_token();
+    let relay = Address::generate(&env);
     let batch_id = 1u64;
     let batch_size = 10000u32; // Large batch to get meaningful treasury share
 
@@ -526,8 +568,8 @@ fn test_calculate_fee_with_different_rates() {
 
 #[test]
 fn test_distribute_with_different_batch_sizes() {
-    let (_env, client) = setup();
-    let relay = Address::generate(&_env);
+    let (env, client, _contract_id) = setup_with_token();
+    let relay = Address::generate(&env);
 
     // Test various batch sizes
     client.distribute(&relay, &1u64, &1u32); // fee = 0 (rounding down)
@@ -582,8 +624,8 @@ fn test_distribute_small_batch_size() {
 
 #[test]
 fn test_distribute_large_batch_size() {
-    let (_env, client) = setup();
-    let relay = Address::generate(&_env);
+    let (env, client, _contract_id) = setup_with_token();
+    let relay = Address::generate(&env);
 
     // Test with large batch size
     let large_batch = 100000u32;
@@ -632,22 +674,43 @@ fn test_fee_rate_change_affects_future_distributions() {
 #[test]
 fn test_treasury_share_calculation_edge_cases() {
     let env = Env::default();
-    env.mock_all_auths();
+    env.mock_all_auths_allowing_non_root_auth();
+
+    // Register token contract
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_id = token_contract.address();
+
+    // Register treasury contract
+    let treasury_id = env.register(treasury::TreasuryContract, ());
+    let treasury_client = treasury::TreasuryContractClient::new(&env, &treasury_id);
+
     let contract_id = env.register(FeeDistributorContract, ());
     let client = FeeDistributorContractClient::new(&env, &contract_id);
+
     let admin = Address::generate(&env);
     let mut members = soroban_sdk::Vec::new(&env);
     members.push_back(admin.clone());
+
+    // Initialize treasury
+    let treasury_council = treasury::types::AdminCouncil {
+        members: members.clone(),
+        threshold: 1,
+    };
+    treasury_client.initialize(&treasury_council, &token_id);
+
     let council = crate::types::AdminCouncil {
         members,
         threshold: 1,
     };
-    let treasury = Address::generate(&env);
-    let token = Address::generate(&env);
     let relay = Address::generate(&env);
 
     // Initialize with 50% treasury share
-    client.initialize(&council, &100u32, &5000u32, &treasury, &token);
+    client.initialize(&council, &100u32, &5000u32, &treasury_id, &token_id);
+
+    // Mint tokens to fee distributor
+    let token_client = token::StellarAssetClient::new(&env, &token_id);
+    token_client.mint(&contract_id, &1_000_000);
 
     client.distribute(&relay, &1u64, &1000u32);
     // fee = 1000 * 100 / 10000 = 10
@@ -757,22 +820,43 @@ fn test_distribute_with_zero_treasury_share() {
 #[test]
 fn test_distribute_with_max_treasury_share() {
     let env = Env::default();
-    env.mock_all_auths();
+    env.mock_all_auths_allowing_non_root_auth();
+
+    // Register token contract
+    let token_admin = Address::generate(&env);
+    let token_contract = env.register_stellar_asset_contract_v2(token_admin.clone());
+    let token_id = token_contract.address();
+
+    // Register treasury contract
+    let treasury_id = env.register(treasury::TreasuryContract, ());
+    let treasury_client = treasury::TreasuryContractClient::new(&env, &treasury_id);
+
     let contract_id = env.register(FeeDistributorContract, ());
     let client = FeeDistributorContractClient::new(&env, &contract_id);
+
     let council_admin = Address::generate(&env);
     let mut members = soroban_sdk::Vec::new(&env);
     members.push_back(council_admin.clone());
+
+    // Initialize treasury
+    let treasury_council = treasury::types::AdminCouncil {
+        members: members.clone(),
+        threshold: 1,
+    };
+    treasury_client.initialize(&treasury_council, &token_id);
+
     let council = crate::types::AdminCouncil {
         members,
         threshold: 1,
     };
-    let treasury = Address::generate(&env);
-    let token = Address::generate(&env);
     let relay = Address::generate(&env);
 
     // Initialize with 100% treasury share
-    client.initialize(&council, &100u32, &10000u32, &treasury, &token);
+    client.initialize(&council, &100u32, &10000u32, &treasury_id, &token_id);
+
+    // Mint tokens to fee distributor
+    let token_client = token::StellarAssetClient::new(&env, &token_id);
+    token_client.mint(&contract_id, &1_000_000);
 
     client.distribute(&relay, &1u64, &1000u32);
     // fee = 1000 * 100 / 10000 = 10
