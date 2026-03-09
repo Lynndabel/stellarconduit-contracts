@@ -64,6 +64,7 @@ impl DisputeResolverContract {
         tx_id: BytesN<32>,
         proof: RelayChainProof,
     ) -> Result<u64, ContractError> {
+        storage::extend_instance_ttl(&env);
         initiator.require_auth();
 
         // Guard against duplicate disputes for the same tx_id.
@@ -124,6 +125,7 @@ impl DisputeResolverContract {
         dispute_id: u64,
         proof: RelayChainProof,
     ) -> Result<(), ContractError> {
+        storage::extend_instance_ttl(&env);
         respondent.require_auth();
 
         let mut dispute =
@@ -174,6 +176,7 @@ impl DisputeResolverContract {
     /// - `ContractError::ResolutionWindowActive` if the dispute is still Open and the window hasn't expired.
     /// - `ContractError::NotResponded` if the dispute status is unexpected.
     pub fn resolve(env: Env, dispute_id: u64) -> Result<Ruling, ContractError> {
+        storage::extend_instance_ttl(&env);
         let mut dispute =
             storage::get_dispute(&env, dispute_id).ok_or(ContractError::DisputeNotFound)?;
 
@@ -336,6 +339,7 @@ impl DisputeResolverContract {
     /// # Errors
     /// - `ContractError::DisputeNotFound` if the ID does not exist.
     pub fn get_dispute(env: Env, dispute_id: u64) -> Result<Dispute, ContractError> {
+        storage::extend_instance_ttl(&env);
         storage::get_dispute(&env, dispute_id).ok_or(ContractError::DisputeNotFound)
     }
 
@@ -351,6 +355,7 @@ impl DisputeResolverContract {
     /// # Errors
     /// - `ContractError::DisputeNotFound` if no ruling exists for this ID.
     pub fn get_ruling(env: Env, dispute_id: u64) -> Result<Ruling, ContractError> {
+        storage::extend_instance_ttl(&env);
         storage::get_ruling(&env, dispute_id).ok_or(ContractError::DisputeNotFound)
     }
 
@@ -373,6 +378,7 @@ impl DisputeResolverContract {
         council: AdminCouncil,
         resolution_window: u32,
     ) -> Result<(), ContractError> {
+        storage::extend_instance_ttl(&env);
         if storage::has_admin_council(&env) {
             return Err(ContractError::AlreadyInitialized);
         }
