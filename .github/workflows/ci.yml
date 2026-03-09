@@ -60,7 +60,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-unknown-unknown
+          targets: wasm32v1-none,wasm32-unknown-unknown
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
@@ -73,13 +73,15 @@ jobs:
 
       - name: Report WASM sizes
         run: |
-          wasms=$(find \
-            target/wasm32v1-none/release \
-            target/wasm32-unknown-unknown/release \
-            -maxdepth 1 \
-            -name '*.wasm' \
-            -type f \
-            2>/dev/null | sort)
+          wasms=$(
+            {
+              for dir in target/wasm32v1-none/release target/wasm32-unknown-unknown/release; do
+                if [ -d "$dir" ]; then
+                  find "$dir" -maxdepth 1 -name '*.wasm' -type f
+                fi
+              done
+            } | sort
+          )
           if [ -z "$wasms" ]; then
             echo "ERROR: No WASM binaries found after build."
             exit 1
@@ -88,29 +90,31 @@ jobs:
           echo "## WASM Binary Sizes" >> "$GITHUB_STEP_SUMMARY"
           echo "| Contract | Size |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
-          for wasm in $wasms; do
+          while IFS= read -r wasm; do
             name=$(basename "$wasm")
             size=$(du -sh "$wasm" | cut -f1)
             echo "| $name | $size |" >> "$GITHUB_STEP_SUMMARY"
-          done
+          done <<< "$wasms"
 
       - name: Enforce WASM size budget (100KB)
         run: |
-          wasms=$(find \
-            target/wasm32v1-none/release \
-            target/wasm32-unknown-unknown/release \
-            -maxdepth 1 \
-            -name '*.wasm' \
-            -type f \
-            2>/dev/null | sort)
+          wasms=$(
+            {
+              for dir in target/wasm32v1-none/release target/wasm32-unknown-unknown/release; do
+                if [ -d "$dir" ]; then
+                  find "$dir" -maxdepth 1 -name '*.wasm' -type f
+                fi
+              done
+            } | sort
+          )
           if [ -z "$wasms" ]; then
             echo "ERROR: No WASM binaries found for size budget check."
             exit 1
           fi
-          for wasm in $wasms; do
+          while IFS= read -r wasm; do
             size=$(stat -c%s "$wasm")
             if [ "$size" -gt 102400 ]; then
               echo "ERROR: $wasm exceeds 100KB size budget ($size bytes)"
               exit 1
             fi
-          done
+          done <<< "$wasms"
