@@ -73,11 +73,7 @@ pub fn set_balance(env: &Env, balance: i128) {
 
 pub fn get_entry(env: &Env, entry_id: u64) -> Option<TreasuryEntry> {
     let key = DataKey::Entry(entry_id);
-    if let Some(entry) = env
-        .storage()
-        .persistent()
-        .get::<_, TreasuryEntry>(&key)
-    {
+    if let Some(entry) = env.storage().persistent().get::<_, TreasuryEntry>(&key) {
         env.storage()
             .persistent()
             .extend_ttl(&key, LEDGER_BUMP_THRESHOLD, LEDGER_BUMP_AMOUNT);
@@ -92,9 +88,7 @@ pub fn set_entry(env: &Env, entry: TreasuryEntry) {
     let count = get_entry_count(env);
     let next_id = count + 1;
     let key = DataKey::Entry(next_id);
-    env.storage()
-        .persistent()
-        .set(&key, &entry);
+    env.storage().persistent().set(&key, &entry);
     env.storage()
         .persistent()
         .extend_ttl(&key, LEDGER_BUMP_THRESHOLD, LEDGER_BUMP_AMOUNT);
@@ -118,9 +112,7 @@ pub fn append_entry(env: &Env, entry: &TreasuryEntry) {
         .checked_add(1)
         .expect("entry count overflow");
     let key = DataKey::Entry(next_id);
-    env.storage()
-        .persistent()
-        .set(&key, entry);
+    env.storage().persistent().set(&key, entry);
     env.storage()
         .persistent()
         .extend_ttl(&key, LEDGER_BUMP_THRESHOLD, LEDGER_BUMP_AMOUNT);
@@ -129,11 +121,7 @@ pub fn append_entry(env: &Env, entry: &TreasuryEntry) {
 
 pub fn get_allocation(env: &Env, program: &String) -> Option<AllocationRecord> {
     let key = DataKey::Allocation(program.clone());
-    if let Some(record) = env
-        .storage()
-        .persistent()
-        .get::<_, AllocationRecord>(&key)
-    {
+    if let Some(record) = env.storage().persistent().get::<_, AllocationRecord>(&key) {
         env.storage()
             .persistent()
             .extend_ttl(&key, LEDGER_BUMP_THRESHOLD, LEDGER_BUMP_AMOUNT);
@@ -145,9 +133,7 @@ pub fn get_allocation(env: &Env, program: &String) -> Option<AllocationRecord> {
 
 pub fn set_allocation(env: &Env, program: &String, record: &AllocationRecord) {
     let key = DataKey::Allocation(program.clone());
-    env.storage()
-        .persistent()
-        .set(&key, record);
+    env.storage().persistent().set(&key, record);
     env.storage()
         .persistent()
         .extend_ttl(&key, LEDGER_BUMP_THRESHOLD, LEDGER_BUMP_AMOUNT);
@@ -156,11 +142,7 @@ pub fn set_allocation(env: &Env, program: &String, record: &AllocationRecord) {
 /// Load a spending program by ID.
 pub fn get_spending_program(env: &Env, program_id: u64) -> Option<SpendingProgram> {
     let key = DataKey::SpendingProgram(program_id);
-    if let Some(program) = env
-        .storage()
-        .persistent()
-        .get::<_, SpendingProgram>(&key)
-    {
+    if let Some(program) = env.storage().persistent().get::<_, SpendingProgram>(&key) {
         env.storage()
             .persistent()
             .extend_ttl(&key, LEDGER_BUMP_THRESHOLD, LEDGER_BUMP_AMOUNT);
@@ -189,9 +171,7 @@ pub fn increment_program_count(env: &Env) -> u64 {
 /// Persist a spending program.
 pub fn set_spending_program(env: &Env, program_id: u64, program: SpendingProgram) {
     let key = DataKey::SpendingProgram(program_id);
-    env.storage()
-        .persistent()
-        .set(&key, &program);
+    env.storage().persistent().set(&key, &program);
     env.storage()
         .persistent()
         .extend_ttl(&key, LEDGER_BUMP_THRESHOLD, LEDGER_BUMP_AMOUNT);

@@ -52,11 +52,7 @@ pub enum DataKey {
 /// if no earnings have been recorded for this address yet.
 pub fn get_earnings(env: &Env, address: &Address) -> EarningsRecord {
     let key = DataKey::Earnings(address.clone());
-    if let Some(record) = env
-        .storage()
-        .persistent()
-        .get::<_, EarningsRecord>(&key)
-    {
+    if let Some(record) = env.storage().persistent().get::<_, EarningsRecord>(&key) {
         env.storage()
             .persistent()
             .extend_ttl(&key, LEDGER_BUMP_THRESHOLD, LEDGER_BUMP_AMOUNT);
@@ -78,9 +74,7 @@ pub fn get_earnings(env: &Env, address: &Address) -> EarningsRecord {
 /// - `record`: The earnings record to store.
 pub fn set_earnings(env: &Env, address: &Address, record: &EarningsRecord) {
     let key = DataKey::Earnings(address.clone());
-    env.storage()
-        .persistent()
-        .set(&key, record);
+    env.storage().persistent().set(&key, record);
     env.storage()
         .persistent()
         .extend_ttl(&key, LEDGER_BUMP_THRESHOLD, LEDGER_BUMP_AMOUNT);
@@ -115,9 +109,7 @@ pub fn get_fee_entry(env: &Env, batch_id: u64) -> Option<FeeEntry> {
 /// - `entry`: The fee entry to store.
 pub fn set_fee_entry(env: &Env, batch_id: u64, entry: &FeeEntry) {
     let key = DataKey::FeeEntry(batch_id);
-    env.storage()
-        .persistent()
-        .set(&key, entry);
+    env.storage().persistent().set(&key, entry);
     env.storage()
         .persistent()
         .extend_ttl(&key, LEDGER_BUMP_THRESHOLD, LEDGER_BUMP_AMOUNT);

@@ -64,9 +64,7 @@ pub fn get_dispute(env: &Env, dispute_id: u64) -> Option<Dispute> {
 /// Persist an updated dispute record to storage.
 pub fn set_dispute(env: &Env, dispute_id: u64, dispute: &Dispute) {
     let key = DataKey::Dispute(dispute_id);
-    env.storage()
-        .persistent()
-        .set(&key, dispute);
+    env.storage().persistent().set(&key, dispute);
     env.storage()
         .persistent()
         .extend_ttl(&key, LEDGER_BUMP_THRESHOLD, LEDGER_BUMP_AMOUNT);
@@ -104,9 +102,7 @@ pub fn get_ruling(env: &Env, dispute_id: u64) -> Option<Ruling> {
 /// Persist a final ruling to storage.
 pub fn set_ruling(env: &Env, dispute_id: u64, ruling: &Ruling) {
     let key = DataKey::Ruling(dispute_id);
-    env.storage()
-        .persistent()
-        .set(&key, ruling);
+    env.storage().persistent().set(&key, ruling);
     env.storage()
         .persistent()
         .extend_ttl(&key, LEDGER_BUMP_THRESHOLD, LEDGER_BUMP_AMOUNT);
@@ -163,9 +159,7 @@ pub fn get_dispute_by_tx(env: &Env, tx_id: &BytesN<32>) -> Option<u64> {
 /// Record that a given tx_id maps to a specific dispute_id.
 pub fn set_dispute_by_tx(env: &Env, tx_id: &BytesN<32>, dispute_id: u64) {
     let key = DataKey::TxDispute(tx_id.clone());
-    env.storage()
-        .persistent()
-        .set(&key, &dispute_id);
+    env.storage().persistent().set(&key, &dispute_id);
     env.storage()
         .persistent()
         .extend_ttl(&key, LEDGER_BUMP_THRESHOLD, LEDGER_BUMP_AMOUNT);
@@ -193,9 +187,7 @@ pub fn get_public_key(env: &Env, address: &Address) -> BytesN<32> {
 /// can perform signature verification.
 pub fn set_public_key(env: &Env, address: &Address, public_key: &BytesN<32>) {
     let key = DataKey::PublicKey(address.clone());
-    env.storage()
-        .persistent()
-        .set(&key, public_key);
+    env.storage().persistent().set(&key, public_key);
     env.storage()
         .persistent()
         .extend_ttl(&key, LEDGER_BUMP_THRESHOLD, LEDGER_BUMP_AMOUNT);

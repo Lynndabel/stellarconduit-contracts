@@ -63,9 +63,7 @@ pub fn get_node(env: &Env, address: &Address) -> Option<RelayNode> {
 
 pub fn set_node(env: &Env, address: &Address, node: &RelayNode) {
     let key = DataKey::RelayNode(address.clone());
-    env.storage()
-        .persistent()
-        .set(&key, node);
+    env.storage().persistent().set(&key, node);
     env.storage()
         .persistent()
         .extend_ttl(&key, LEDGER_BUMP_THRESHOLD, LEDGER_BUMP_AMOUNT);
@@ -163,9 +161,7 @@ pub fn get_lock_entry(env: &Env, address: &Address) -> Option<crate::types::Stak
 
 pub fn set_lock_entry(env: &Env, address: &Address, entry: &crate::types::StakeEntry) {
     let key = DataKey::LockEntry(address.clone());
-    env.storage()
-        .persistent()
-        .set(&key, entry);
+    env.storage().persistent().set(&key, entry);
     env.storage()
         .persistent()
         .extend_ttl(&key, LEDGER_BUMP_THRESHOLD, LEDGER_BUMP_AMOUNT);
