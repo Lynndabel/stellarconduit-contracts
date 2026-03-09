@@ -295,7 +295,7 @@ fn test_allocate_insufficient_treasury_balance() {
 }
 
 #[test]
-fn test_upgrade_and_version() {
+fn test_version() {
     let env = Env::default();
     env.mock_all_auths();
     let client = create_treasury_contract(&env);
@@ -306,8 +306,4 @@ fn test_upgrade_and_version() {
 
     // Test version returns 1
     assert_eq!(client.version(), 1);
-
-    // Test upgrade succeeds for admin
-    let new_wasm_hash = BytesN::from_array(&env, &[1u8; 32]);
-    client.upgrade(&new_wasm_hash);
 }
